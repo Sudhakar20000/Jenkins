@@ -33,6 +33,12 @@ Name DC
 Install automatically
 select version
 add install : install from github.com
+
+Docker installations 
+Name docker-new
+Install automatically
+Docker version: latest
+
 ===========================================================================================================================================================================================
                                                                 (sonarqube configuration with jenkins)
 Now go to cli and create docker container for sonarqube  
@@ -60,6 +66,12 @@ Secret: squ_ebb7d7e2c78167e8374b1dabe22cb0843e2ae458
 ID: sonar
 save
 
+docker registry credentials
+New credentials
+Kind: username and password
+Username: sudhakar20000
+password: *********
+ID  docker-cred
 
 Dashboard > Manage Jenkins >  System
 
@@ -69,12 +81,13 @@ Server URL http://10.0.0.83:9000
 Server authentication token: sonar
 ===========================================================================================================================================================================================
 pipline to test:
-
+Dashboard > new-pipline > Pipeline Syntax
+Sample Step: withDockerRegistry set up docker endpoint
 pipeline {
-    agent any 
+    agent any
 
     tools {
-        maven 'maven-new' 
+        maven 'maven-new'
         jdk 'jdk-new'
     }
 
@@ -84,7 +97,7 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') { 
+        stage('Checkout') {
             steps {
                 git 'https://github.com/jaiswaladi246/secretsanta-generator.git'
             }
@@ -99,31 +112,57 @@ pipeline {
                 sh 'mvn test'
             }
         }
-        stage('SonarQube Scan') { 
+        stage('SonarQube Scan') {
             steps {
                 withSonarQubeEnv('sonar') {
-                    // Corrected sonar-scanner command and quotes
                     sh "${SCANNER_HOME}/bin/sonar-scanner -Dsonar.projectName=santa -Dsonar.projectKey=santa -Dsonar.java.binaries=./target/classes"
                 }
             }
         }
-        stage('OWASP Scan') { /
+        stage('OWASP Scan') {
             steps {
                 dependencyCheck additionalArguments: '--scan . ', odcInstallation: 'DC'
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
         }
-        stage('Build Application') { 
+        stage('Build Application') {
             steps {
                 sh 'mvn package'
-            } 
+            }
+        }
+        // --- Docker Stages start here, they must be inside the 'stages' block ---
+        stage('Build Docker Image') {
+            steps { // Use curly braces for 'steps'
+                script { // 'script' block for more complex Groovy logic
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker') {
+                        // Corrected 'docker build' command: -t for tag, '.' for build context
+                        sh "docker build -t santa:latest ."
+                    }
+                }
+            }
+        }
+        stage('Tag & Push Docker Image') {
+            steps { // Use curly braces for 'steps'
+                script { // 'script' block for more complex Groovy logic
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker-new') {
+                        // Corrected docker tag and push commands (no spaces in image names/tags)
+                        sh "docker tag santa:latest sudhakar20000/santa:latest"
+                        sh "docker push sudhakar20000/santa:latest"
+                    }
+                }
+            }
+        }
+        stage('Deploy Application') { // Corrected quote for stage name
+            steps { // Use curly braces for 'steps'
+                script { // 'script' block for more complex Groovy logic
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker-new')                   
+                       sh "docker run -d -p 8081:8080 sudhakar20000/santa:latest"
+                    }
+                }
+            }
         }
     } 
 } 
-
-
-
-
 
 
 
