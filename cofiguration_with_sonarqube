@@ -1,0 +1,140 @@
+Jenkins project Master(10.0.0.83)
+=================================
+
+Download the plugins
+manage jenkins -> plugins -> available plugins 
+Eclipse Temurin installer Plugin
+SonarQube Scanner for Jenkins 
+OWASP Dependency-Check Plugin
+Docker Compose Build Step Plugin 
+Docker Pipeline
+Docker plugin
+
+Dashboard > Manage Jenkins > Tools
+
+JDK installations 
+Name:  jdk-new
+Install automatically
+select version
+add install : install from adoptium.net
+
+SonarQube Scanner installations 
+Name SonarQube Scanner-new
+Install automatically
+select version
+
+Maven installations 
+Name maven-new
+Install automatically
+select version
+
+Dependency-Check installations
+Name DC
+Install automatically
+select version
+add install : install from github.com
+===========================================================================================================================================================================================
+                                                                (sonarqube configuration with jenkins)
+Now go to cli and create docker container for sonarqube  
+
+docker run -d --name sonar -p 9000:9000 sonarqube:lts-community
+
+acess the sonarqube url: http://10.0.0.83:9000
+username: admin
+password: admin
+
+go to  Administration -> Security -> Users 
+click on three dots 
+name : sonar
+Done
+copy the tocken exmaple "squ_ebb7d7e2c78167e8374b1dabe22cb0843e2ae458"
+
+
+
+now go to jenkins ui
+
+Dashboard  > Manage Jenkins  > Credentials  > System >   Global credentials (unrestricted)
+Add credentials
+Kind:  secret text
+Secret: squ_ebb7d7e2c78167e8374b1dabe22cb0843e2ae458
+ID: sonar
+save
+
+
+Dashboard > Manage Jenkins >  System
+
+SonarQube servers > SonarQube installations
+Name: sonar
+Server URL http://10.0.0.83:9000
+Server authentication token: sonar
+===========================================================================================================================================================================================
+pipline to test:
+
+pipeline {
+    agent any 
+
+    tools {
+        maven 'maven-new' 
+        jdk 'jdk-new'
+    }
+
+    environment {
+        // Corrected syntax for referencing a tool in the environment block
+        SCANNER_HOME = tool 'SonarQube Scanner-new'
+    }
+
+    stages {
+        stage('Checkout') { 
+            steps {
+                git 'https://github.com/jaiswaladi246/secretsanta-generator.git'
+            }
+        }
+        stage('Compile') {
+            steps {
+                sh 'mvn compile'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+        stage('SonarQube Scan') { 
+            steps {
+                withSonarQubeEnv('sonar') {
+                    // Corrected sonar-scanner command and quotes
+                    sh "${SCANNER_HOME}/bin/sonar-scanner -Dsonar.projectName=santa -Dsonar.projectKey=santa -Dsonar.java.binaries=./target/classes"
+                }
+            }
+        }
+        stage('OWASP Scan') { /
+            steps {
+                dependencyCheck additionalArguments: '--scan . ', odcInstallation: 'DC'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        stage('Build Application') { 
+            steps {
+                sh 'mvn package'
+            } 
+        }
+    } 
+} 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
