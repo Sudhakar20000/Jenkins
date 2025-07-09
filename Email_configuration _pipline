@@ -1,0 +1,104 @@
+email congiguration to jenkins pipline
+======================================
+Dashboard > Manage Jenkins > System
+Extended E-mail Notification 
+SMTP server: smtp.gmail.com
+SMTP Por: 465
+ Advanced
+  add
+   Kind: username and password
+   Scope: globel
+   username: mandasudhakar200@gmail.com
+   password: *********   //generate password by app password go gmail account > manage your account > security > 2-Step Verification Requirement > app password > create
+   ID: mail-cred
+Credentials: mandasudhakar200@gmail.com/******
+Use SSL
+
+E-mail Notification 
+SMTP server: smtp.gmail.com
+Advanced
+ Use SMTP Authentication
+  User Name: mandasudhakar200@gmail.com
+  password: ********* 
+ Use SSL
+ SMTP Por: 465  
+
+//test the connection 
+Test configuration by sending test e-mail
+Test e-mail recipient: mandasudhakar200@gmail.com
+test configure
+
+==========================================================================================================================================================================================
+
+ pipeline {
+    agent {
+        label 'slave1'
+    }
+
+    tools {
+        maven 'maven-new' // Corrected typo: 'mavan-new' -> 'maven-new'
+        jdk 'jdk-new'
+    }
+
+    environment {
+        // Corrected syntax for referencing a tool in the environment block
+        SCANNER_HOME = tool 'SonarQube Scanner-new'
+    }
+
+    stages {
+        stage('Checkout') { // Capitalized stage name for consistency
+            steps {
+                git 'https://github.com/jaiswaladi246/secretsanta-generator.git'
+            }
+        }
+        stage('Compile') {
+            steps {
+                sh 'mvn compile'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+        stage('SonarQube Scan') { // Capitalized stage name
+            steps {
+                withSonarQubeEnv('sonar') {
+                    // Corrected sonar-scanner command and quotes
+                    sh "${SCANNER_HOME}/bin/sonar-scanner -Dsonar.projectName=santa -Dsonar.projectKey=santa -Dsonar.java.binaries=./target/classes"
+                }
+            }
+        }
+        stage('OWASP Scan') { // Capitalized stage name
+            steps {
+                dependencyCheck additionalArguments: '--scan . ', odcInstallation: 'DC'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        stage('Build Application') { // Capitalized stage name
+            steps {
+                sh 'mvn package'
+            }
+        }
+    }
+
+    // The 'post' section must be inside the 'pipeline' block
+    post {
+        always {
+            emailext (
+                subject: "Pipeline Status: ${currentBuild.result}", // Corrected interpolation
+                body: '''<html>
+<body>
+<p>Build Status: ${BUILD_STATUS}</p>
+<p>Build Number: ${BUILD_NUMBER}</p>
+<p>Check the <a href="${BUILD_URL}">console output</a>.</p>
+</body>
+</html>''', // Added missing comma after body string
+                to: 'mandasudhakar2000@gmail.com',
+                from: 'jenkins@example.com',
+                replyTo: 'jenkins@example.com',
+                mimeType: 'text/html'
+            )
+        }
+    }
+}  
