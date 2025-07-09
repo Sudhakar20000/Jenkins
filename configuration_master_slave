@@ -1,7 +1,9 @@
 create new slave server(10.0.0.96)
 =================================
 install mavan and docker
-apt install maven -y
+sudo apt install maven -y
+sudo apt install docker.io -y
+sudo chmod 666 /var/run/docker.sock
 
 Now generate the ssh keys
 
