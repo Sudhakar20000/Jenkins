@@ -1,0 +1,135 @@
+create new slave server(10.0.0.96)
+=================================
+install mavan and docker
+apt install maven -y
+
+Now generate the ssh keys
+
+  ssh-keygen
+create file with name authorized_keys and copy the public (id_rsa.pub)key content to it.
+ vi authorized_keys
+
+create a directory 
+ mkdir jenkins-slave
+
+Now to go jenkins Master consle (10.0.0.83)
+===========================================
+ Dashboard > Manage Jenkins > Nodes > new node
+  name: slave-1
+  Type: Permanent Agent
+  create
+Remote root directory : /home/bandaru/jenkins-slave
+  label: slave-1
+  usage: only buils with label expression maches this node.
+  Launch method: launch agent via SSH
+  Host: 10.0.0.96
+  Credentials: add
+    kind: SSH username with private key
+    ID: slave-cred
+    username: bandaru
+    Private Key : enter Directory
+     (past the private key (id_rsa) from 96 ip
+    Add
+Credentials:  slave-cred
+Host Key Verification Strategy: non verfying verfication strategy
+save
+
+now check the connection
+Dashboard > Manage Jenkins > Nodes > slave-1 > logs
+
+=================================================================
+check with pipline
+  
+  pipeline {
+    agent {
+        label 'slave-1'
+    }
+
+    tools {
+        maven 'maven-new'
+        jdk 'jdk-new'
+    }
+
+    environment {
+        // Corrected syntax for referencing a tool in the environment block
+        SCANNER_HOME = tool 'SonarQube Scanner-new'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git 'https://github.com/jaiswaladi246/secretsanta-generator.git'
+            }
+        }
+        stage('Compile') {
+            steps {
+                sh 'mvn compile'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+        stage('SonarQube Scan') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh "${SCANNER_HOME}/bin/sonar-scanner -Dsonar.projectName=santa -Dsonar.projectKey=santa -Dsonar.java.binaries=./target/classes"
+                }
+            }
+        }
+        stage('OWASP Scan') {
+            steps {
+                dependencyCheck additionalArguments: '--scan . ', odcInstallation: 'DC'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        stage('Build Application') {
+            steps {
+                sh 'mvn package'
+            }
+        }
+        // --- Docker Stages start here, they must be inside the 'stages' block ---
+        stage('Build Docker Image') {
+            steps { // Use curly braces for 'steps'
+                script { // 'script' block for more complex Groovy logic
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker') {
+                        // Corrected 'docker build' command: -t for tag, '.' for build context
+                        sh "docker build -t santa:latest ."
+                    }
+                }
+            }
+        }
+        stage('Tag & Push Docker Image') {
+            steps { // Use curly braces for 'steps'
+                script { // 'script' block for more complex Groovy logic
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker-new') {
+                        // Corrected docker tag and push commands (no spaces in image names/tags)
+                        sh "docker tag santa:latest sudhakar20000/santa:latest"
+                        sh "docker push sudhakar20000/santa:latest"
+                    }
+                }
+            }
+        }
+        stage('Deploy Application') { // Corrected quote for stage name
+            steps { // Use curly braces for 'steps'
+                script { // 'script' block for more complex Groovy logic
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker-new') {
+                        // Corrected docker run command (no spaces in image name/tag)
+                        // Note: Using -d will run in detached mode. If you need to stop/clean up,
+                        // consider naming the container or having a separate cleanup step.
+                        sh "docker run -d -p 8081:8080 sudhakar20000/santa:latest"
+                    }
+                }
+            }
+        }
+    } // Closes the 'stages' block
+} // Closes the 'pipeline' block
+  
+
+  
+  
+
+
+
+  
